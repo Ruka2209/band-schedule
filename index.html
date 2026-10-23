@@ -37,6 +37,13 @@ th:first-child,td:first-child{text-align:left}
 tr.best td{background:var(--ok-bg)}
 .nm{white-space:normal;text-align:left;color:var(--mut);font-size:12px}
 .badge{display:inline-block;background:var(--ok);color:var(--bg);font-size:11px;border-radius:6px;padding:1px 6px;margin-left:6px}
+.mx td.who1{text-align:left;white-space:normal;min-width:7em;max-width:11em;position:sticky;left:0;background:var(--card)}
+.mx th:first-child{position:sticky;left:0;background:var(--card)}
+.sn{font-size:11px;color:var(--mut);font-weight:400;margin-top:2px}
+.tm{font-size:11px;color:var(--mut);font-weight:400}
+.m{font-size:16px;color:var(--mut)}.m.o{color:var(--ok)}.m.t{color:var(--mid)}.m.x{color:var(--ng)}
+.mx .bestc{background:var(--ok-bg)}
+.mx .cnt td{font-size:12px;color:var(--mut)}
 .empty{color:var(--mut);text-align:center;padding:24px 8px;font-size:14px}
 #msg{color:var(--mut);font-size:12px;min-height:16px;margin-top:6px}
 </style>
@@ -81,7 +88,6 @@ const firebaseConfig = {
     messagingSenderId: "247831563786",
     appId: "1:247831563786:web:9600b7f5a1560e2805d9f3",
     measurementId: "G-KXC13RZZEM"
-};
 // ▲▲▲ ここまで ▲▲▲
 
 const DEFAULT_SONGS=['ブルーアンビエンス','A8番出口','華奢なリップ','阿修羅ちゃん','完全感覚Dreamer','テレキャスターストライプ'];
@@ -92,6 +98,7 @@ const isAdmin=location.hash==='#admin';
 let cfg={slots:[],songs:DEFAULT_SONGS.slice()},resp=[],mine={},mineSongs=[],name='',db=null,loaded=false;
 
 $('admin').hidden=!isAdmin;
+window.addEventListener('hashchange',()=>location.reload());
 function fmt(s){const [y,m,d]=s.date.split('-').map(Number);return `${m}/${d}(${DOW[new Date(y,m-1,d).getDay()]})`}
 function say(t){$('msg').textContent=t}
 const docId=n=>n.replace(/[\/\\]/g,'／').replace(/^\.+$/,'_');
@@ -159,20 +166,17 @@ function render(){
   $('list').innerHTML=cfg.slots.map(s=>`<div class="card"><div class="slot-h"><div><b>${esc(fmt(s))}</b><span>${esc(s.time)}</span></div>${isAdmin?`<button class="del" data-del="${esc(s.id)}">×</button>`:''}</div><div class="btns">${['o','t','x'].map(k=>`<button class="${k}${mine[s.id]===k?' on':''}" data-id="${esc(s.id)}" data-v="${k}">${MARK[k]}<small>${LBL[k]}</small></button>`).join('')}</div></div>`).join('');
 
   if(!ppl.length){$('sum').innerHTML='<div class="empty">まだ回答がありません</div>';return}
-  const rows=cfg.slots.map(s=>{
-    const g={o:[],t:[],x:[]};
-    ppl.forEach(p=>{
-      const v=(p.answers||{})[s.id];
-      if(g[v]){const t=(p.songs||[]).filter(x=>cfg.songs.includes(x));g[v].push(p.name+(t.length?'（'+t.join('・')+'）':''))}
-    });
-    return {s,g}
-  });
-  const score=r=>r.g.o.length*2+r.g.t.length-r.g.x.length*3;
-  const top=Math.max(...rows.map(score));
-  $('sum').innerHTML=`<div class="card scroll"><table><tr><th>候補日</th><th>○</th><th>△</th><th>×</th></tr>${rows.map(r=>{
-    const best=score(r)===top&&r.g.o.length;
-    return `<tr class="${best?'best':''}"><td>${esc(fmt(r.s))} <span style="color:var(--mut)">${esc(r.s.time)}</span>${best?'<span class="badge">有力</span>':''}</td><td>${r.g.o.length}</td><td>${r.g.t.length}</td><td>${r.g.x.length}</td></tr><tr><td colspan="4" class="nm">${['o','t','x'].filter(k=>r.g[k].length).map(k=>`<div>${MARK[k]} ${r.g[k].map(esc).join('、')}</div>`).join('')||'回答なし'}</td></tr>`
-  }).join('')}</table></div>`
+  const stats=cfg.slots.map(s=>{let o=0,t=0,x=0;ppl.forEach(p=>{const v=(p.answers||{})[s.id];if(v==='o')o++;else if(v==='t')t++;else if(v==='x')x++});return {o,t,x,sc:o*2+t-x*3}});
+  const top=Math.max(...stats.map(z=>z.sc));
+  const best=i=>stats[i].sc===top&&stats[i].o>0;
+  const head=cfg.slots.map((s,i)=>`<th class="${best(i)?'bestc':''}">${esc(fmt(s))}<div class="tm">${esc(s.time)}</div>${best(i)?'<span class="badge">有力</span>':''}</th>`).join('');
+  const body=ppl.map(p=>{
+    const t=(p.songs||[]).filter(x=>cfg.songs.includes(x));
+    const cells=cfg.slots.map((s,i)=>{const v=(p.answers||{})[s.id];return `<td class="${best(i)?'bestc':''}">${v?`<span class="m ${v}">${MARK[v]}</span>`:'<span class="m">－</span>'}</td>`}).join('');
+    return `<tr><td class="who1"><b>${esc(p.name)}</b>${t.length?`<div class="sn">${t.map(esc).join('、')}</div>`:''}</td>${cells}</tr>`
+  }).join('');
+  const foot=`<tr class="cnt"><td>○ / △ / ×</td>${stats.map(z=>`<td>${z.o} / ${z.t} / ${z.x}</td>`).join('')}</tr>`;
+  $('sum').innerHTML=`<div class="card scroll"><table class="mx"><tr><th>名前・担当曲</th>${head}</tr>${body}${foot}</table></div>`
 }
 
 try{const n=localStorage.getItem('bandName');if(n){$('name').value=n;name=n}}catch(e){}
