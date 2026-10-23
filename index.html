@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>バンド練習 日程調整</title>
+<style>
+:root{--bg:#faf8f5;--card:#fff;--tx:#1f1d1a;--mut:#756f66;--bd:#e6e0d7;--ac:#d9480f;--ok:#2b8a3e;--ok-bg:#e6f4ea;--mid:#e67700;--mid-bg:#fff3d9;--ng:#c92a2a;--ng-bg:#fde8e8}
+@media (prefers-color-scheme:dark){:root{--bg:#171513;--card:#221f1c;--tx:#f1ede6;--mut:#a39c90;--bd:#38332d;--ac:#ff8a4c;--ok:#69db7c;--ok-bg:#1d3324;--mid:#ffc069;--mid-bg:#3a2d14;--ng:#ff8787;--ng-bg:#3b1e1e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.5}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:15px;margin:28px 0 10px}
+.sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:10px}
+.lbl{font-size:13px;color:var(--mut);margin-bottom:6px}
+input{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;width:100%}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.add{background:var(--ac);color:#fff;border:none;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.del{background:none;border:none;color:var(--mut);font-size:18px;cursor:pointer;padding:0 4px}
+.slot-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.slot-h b{font-size:16px}.slot-h span{color:var(--mut);font-size:13px;margin-left:8px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.btns button{font:inherit;font-size:18px;padding:10px 0;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--mut);cursor:pointer}
+.btns button small{display:block;font-size:11px}
+.btns button.on.o{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.btns button.on.t{background:var(--mid-bg);border-color:var(--mid);color:var(--mid)}
+.btns button.on.x{background:var(--ng-bg);border-color:var(--ng);color:var(--ng)}
+.sg{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.sg:last-child{border-bottom:none}.sg .tt{font-size:15px;font-weight:600}.sg .who{font-size:12px;color:var(--mut);margin-top:2px}
+.sg button.pick{font:inherit;font-size:13px;border-radius:999px;border:1px solid var(--bd);background:var(--bg);color:var(--mut);padding:7px 12px;cursor:pointer;white-space:nowrap}
+.sg button.pick.on{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);font-weight:600}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:center;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tr.best td{background:var(--ok-bg)}
+.nm{white-space:normal;text-align:left;color:var(--mut);font-size:12px}
+.badge{display:inline-block;background:var(--ok);color:var(--bg);font-size:11px;border-radius:6px;padding:1px 6px;margin-left:6px}
+.empty{color:var(--mut);text-align:center;padding:24px 8px;font-size:14px}
+#msg{color:var(--mut);font-size:12px;min-height:16px;margin-top:6px}
+</style>
+</head>
+<body>
+<main>
+  <h1>🎸 バンド練習 日程調整</h1>
+  <p class="sub">名前を入れて、担当する曲と各候補日の ○ △ × をタップ。回答はみんなに見えます。</p>
+
+  <div class="card">
+    <input id="name" placeholder="あなたの名前（毎回同じ名前で）" maxlength="20" autocomplete="off">
+    <div id="msg"></div>
+  </div>
+
+  <div id="admin" class="card" hidden>
+    <div class="lbl">幹事用：候補日と曲の追加（削除は各項目の × ）</div>
+    <div class="row"><input id="d" type="date"><input id="t" placeholder="19:00〜22:00" maxlength="20"></div>
+    <button class="add" id="addSlot" style="width:100%;margin-bottom:12px">＋ 候補日を追加</button>
+    <div class="row"><input id="song" placeholder="曲名" maxlength="60"><button class="add" id="addSong">＋ 曲</button></div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">🎵 やる曲（担当する曲をタップ）</div>
+    <div id="songs"></div>
+  </div>
+
+  <div id="list"></div>
+
+  <h2>みんなの回答</h2>
+  <div id="sum"></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore-compat.js"></script>
+<script>
+// ▼▼▼ ここを自分のFirebaseの設定に書き換える ▼▼▼
+const firebaseConfig = {
+    apiKey: "AIzaSyBk6JT3F4IkiNLDFxKFR7zOt43zyjYsR6I",
+    authDomain: "band-schedule-def08.firebaseapp.com",
+    projectId: "band-schedule-def08",
+    storageBucket: "band-schedule-def08.firebasestorage.app",
+    messagingSenderId: "247831563786",
+    appId: "1:247831563786:web:9600b7f5a1560e2805d9f3",
+    measurementId: "G-KXC13RZZEM"
+};
+// ▲▲▲ ここまで ▲▲▲
+
+const DEFAULT_SONGS=['ブルーアンビエンス','A8番出口','華奢なリップ','阿修羅ちゃん','完全感覚Dreamer','テレキャスターストライプ'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MARK={o:'○',t:'△',x:'×'},LBL={o:'行ける',t:'微妙',x:'無理'},DOW='日月火水木金土';
+const isAdmin=location.hash==='#admin';
+let cfg={slots:[],songs:DEFAULT_SONGS.slice()},resp=[],mine={},mineSongs=[],name='',db=null,loaded=false;
+
+$('admin').hidden=!isAdmin;
+function fmt(s){const [y,m,d]=s.date.split('-').map(Number);return `${m}/${d}(${DOW[new Date(y,m-1,d).getDay()]})`}
+function say(t){$('msg').textContent=t}
+const docId=n=>n.replace(/[\/\\]/g,'／').replace(/^\.+$/,'_');
+function people(){
+  const others=resp.filter(r=>r.name!==name);
+  const me=name&&(Object.keys(mine).length||mineSongs.length)?[{name,answers:mine,songs:mineSongs}]:[];
+  return others.concat(me)
+}
+function loadMine(){
+  const r=resp.find(x=>x.name===name);
+  if(r){mine=Object.assign({},r.answers||{});mineSongs=(r.songs||[]).slice()}
+}
+
+function needName(){if(!name){say('先に名前を入力してください');$('name').focus();return true}return false}
+function save(){
+  if(needName()||!db)return;
+  db.doc('responses/'+docId(name)).set({name,answers:mine,songs:mineSongs,updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
+    .then(()=>say('保存しました ✓')).catch(()=>say('保存できませんでした'))
+}
+function saveCfg(){
+  if(!db)return;
+  db.doc('config/main').set({slots:cfg.slots,songs:cfg.songs}).catch(()=>say('更新できませんでした'))
+}
+
+$('name').addEventListener('change',()=>{
+  name=$('name').value.trim();
+  try{localStorage.setItem('bandName',name)}catch(e){}
+  mine={};mineSongs=[];loadMine();render()
+});
+$('songs').onclick=e=>{
+  const dl=e.target.closest('[data-ds]');
+  if(dl&&isAdmin){if(confirm('この曲を削除しますか？')){cfg.songs=cfg.songs.filter(x=>x!==dl.dataset.ds);saveCfg()}return}
+  const b=e.target.closest('[data-song]');if(!b||needName())return;
+  const t=b.dataset.song,i=mineSongs.indexOf(t);
+  if(i>=0)mineSongs.splice(i,1);else mineSongs.push(t);
+  render();save()
+};
+$('list').onclick=e=>{
+  const dl=e.target.closest('[data-del]');
+  if(dl&&isAdmin){if(confirm('この候補日を削除しますか？')){cfg.slots=cfg.slots.filter(s=>s.id!==dl.dataset.del);saveCfg()}return}
+  const b=e.target.closest('[data-v]');if(!b||needName())return;
+  mine[b.dataset.id]=b.dataset.v;render();save()
+};
+$('addSlot').onclick=()=>{
+  const d=$('d').value;if(!d)return;const t=$('t').value.trim();
+  cfg.slots=cfg.slots.concat([{id:d+' '+t,date:d,time:t}]);saveCfg();$('d').value='';$('t').value=''
+};
+$('addSong').onclick=()=>{
+  const t=$('song').value.trim();if(!t||cfg.songs.includes(t))return;
+  cfg.songs=cfg.songs.concat([t]);saveCfg();$('song').value=''
+};
+
+function render(){
+  const ppl=people();
+  $('songs').innerHTML=cfg.songs.length?cfg.songs.map(t=>{
+    const names=ppl.filter(p=>(p.songs||[]).includes(t)).map(p=>p.name);
+    const on=mineSongs.includes(t);
+    return `<div class="sg"><div><div class="tt">${esc(t)}</div><div class="who">${names.length?'担当：'+names.map(esc).join('、'):'担当なし'}</div></div><div>${isAdmin?`<button class="del" data-ds="${esc(t)}">×</button>`:''}<button class="pick ${on?'on':''}" data-song="${esc(t)}">${on?'担当中 ✓':'担当する'}</button></div></div>`
+  }).join(''):'<div class="empty">曲がありません</div>';
+
+  if(!cfg.slots.length){
+    $('list').innerHTML='<div class="empty">候補日がまだありません。'+(isAdmin?'':'<br>幹事が追加するまでお待ちください。')+'</div>';
+    $('sum').innerHTML='';return
+  }
+  $('list').innerHTML=cfg.slots.map(s=>`<div class="card"><div class="slot-h"><div><b>${esc(fmt(s))}</b><span>${esc(s.time)}</span></div>${isAdmin?`<button class="del" data-del="${esc(s.id)}">×</button>`:''}</div><div class="btns">${['o','t','x'].map(k=>`<button class="${k}${mine[s.id]===k?' on':''}" data-id="${esc(s.id)}" data-v="${k}">${MARK[k]}<small>${LBL[k]}</small></button>`).join('')}</div></div>`).join('');
+
+  if(!ppl.length){$('sum').innerHTML='<div class="empty">まだ回答がありません</div>';return}
+  const rows=cfg.slots.map(s=>{
+    const g={o:[],t:[],x:[]};
+    ppl.forEach(p=>{
+      const v=(p.answers||{})[s.id];
+      if(g[v]){const t=(p.songs||[]).filter(x=>cfg.songs.includes(x));g[v].push(p.name+(t.length?'（'+t.join('・')+'）':''))}
+    });
+    return {s,g}
+  });
+  const score=r=>r.g.o.length*2+r.g.t.length-r.g.x.length*3;
+  const top=Math.max(...rows.map(score));
+  $('sum').innerHTML=`<div class="card scroll"><table><tr><th>候補日</th><th>○</th><th>△</th><th>×</th></tr>${rows.map(r=>{
+    const best=score(r)===top&&r.g.o.length;
+    return `<tr class="${best?'best':''}"><td>${esc(fmt(r.s))} <span style="color:var(--mut)">${esc(r.s.time)}</span>${best?'<span class="badge">有力</span>':''}</td><td>${r.g.o.length}</td><td>${r.g.t.length}</td><td>${r.g.x.length}</td></tr><tr><td colspan="4" class="nm">${['o','t','x'].filter(k=>r.g[k].length).map(k=>`<div>${MARK[k]} ${r.g[k].map(esc).join('、')}</div>`).join('')||'回答なし'}</td></tr>`
+  }).join('')}</table></div>`
+}
+
+try{const n=localStorage.getItem('bandName');if(n){$('name').value=n;name=n}}catch(e){}
+
+if(firebaseConfig.apiKey==='ここに貼る'){
+  $('list').innerHTML='<div class="empty">Firebaseの設定（firebaseConfig）がまだ書き換えられていません。</div>';
+}else{
+  firebase.initializeApp(firebaseConfig);
+  db=firebase.firestore();
+  db.doc('config/main').onSnapshot(s=>{
+    if(s.exists){const d=s.data();cfg.slots=(d.slots||[]).slice().sort((a,b)=>(a.id<b.id?-1:1));cfg.songs=d.songs||[]}
+    render()
+  },()=>say('読み込みに失敗しました（ルールの設定を確認してください）'));
+  db.collection('responses').onSnapshot(s=>{
+    resp=s.docs.map(d=>d.data());
+    if(!loaded){loaded=true;loadMine()}
+    render()
+  },()=>say('読み込みに失敗しました（ルールの設定を確認してください）'));
+  render();
+}
+</script>
+</body>
+</html>
