@@ -79,17 +79,15 @@ tr.best td{background:var(--ok-bg)}
 <script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore-compat.js"></script>
 <script>
-// ▼▼▼ ここを自分のFirebaseの設定に書き換える ▼▼▼
+// Firebaseの設定
 const firebaseConfig = {
-    apiKey: "AIzaSyBk6JT3F4IkiNLDFxKFR7zOt43zyjYsR6I",
-    authDomain: "band-schedule-def08.firebaseapp.com",
-    projectId: "band-schedule-def08",
-    storageBucket: "band-schedule-def08.firebasestorage.app",
-    messagingSenderId: "247831563786",
-    appId: "1:247831563786:web:9600b7f5a1560e2805d9f3",
-    measurementId: "G-KXC13RZZEM"
+  apiKey: "AIzaSyBk6JT3F4IkiNLDFxKFR7zOt43zyjYsR6I",
+  authDomain: "band-schedule-def08.firebaseapp.com",
+  projectId: "band-schedule-def08",
+  storageBucket: "band-schedule-def08.firebasestorage.app",
+  messagingSenderId: "247831563786",
+  appId: "1:247831563786:web:9600b7f5a1560e2805d9f3"
 };
-// ▲▲▲ ここまで ▲▲▲
 
 const DEFAULT_SONGS=['ブルーアンビエンス','A8番出口','華奢なリップ','阿修羅ちゃん','完全感覚Dreamer','テレキャスターストライプ'];
 const $=id=>document.getElementById(id);
@@ -168,12 +166,10 @@ function render(){
 
   if(!ppl.length){$('sum').innerHTML='<div class="empty">まだ回答がありません</div>';return}
   const stats=cfg.slots.map(s=>{let o=0,t=0,x=0;ppl.forEach(p=>{const v=(p.answers||{})[s.id];if(v==='o')o++;else if(v==='t')t++;else if(v==='x')x++});return {o,t,x,sc:o*2+t-x*3}});
-  const top=Math.max(...stats.map(z=>z.sc));
-  const best=i=>stats[i].sc===top&&stats[i].o>0;
-  const head=cfg.slots.map((s,i)=>`<th class="${best(i)?'bestc':''}">${esc(fmt(s))}<div class="tm">${esc(s.time)}</div>${best(i)?'<span class="badge">有力</span>':''}</th>`).join('');
+  const head=cfg.slots.map((s,i)=>`<th>${esc(fmt(s))}<div class="tm">${esc(s.time)}</div></th>`).join('');
   const body=ppl.map(p=>{
     const t=(p.songs||[]).filter(x=>cfg.songs.includes(x));
-    const cells=cfg.slots.map((s,i)=>{const v=(p.answers||{})[s.id];return `<td class="${best(i)?'bestc':''}">${v?`<span class="m ${v}">${MARK[v]}</span>`:'<span class="m">－</span>'}</td>`}).join('');
+    const cells=cfg.slots.map((s,i)=>{const v=(p.answers||{})[s.id];return `<td>${v?`<span class="m ${v}">${MARK[v]}</span>`:'<span class="m">－</span>'}</td>`}).join('');
     return `<tr><td class="who1"><b>${esc(p.name)}</b>${t.length?`<div class="sn">${t.map(esc).join('、')}</div>`:''}</td>${cells}</tr>`
   }).join('');
   const foot=`<tr class="cnt"><td>○ / △ / ×</td>${stats.map(z=>`<td>${z.o} / ${z.t} / ${z.x}</td>`).join('')}</tr>`;
